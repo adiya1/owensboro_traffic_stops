@@ -1,0 +1,86 @@
+---
+title: "Location of Traffic Stops in Owensboro, KY"
+author: "Adiya Abdilkhay"
+date: '04/06/2019'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+# the most essential package that includes ggplot2, readr, etc., that I would need in this pset
+library(stringr)
+# i will need to use a stringr function when trying to find a specific word in a string in one of the madlibs
+library(gt)
+# i will use this package to build a table in question 2
+library(fs)
+# i will need this pack to be able to delete unnecessary files 
+library(sf)
+# i will be reading in my data as a shapefile for my maps, and will need the sf package to use the functions in it
+library(ggthemes)
+# i will use the theme_map() function in the ggthemes package
+library(gganimate)
+# for question 5, i will be using animating functions from gganimate to make my map dynamic
+library(transformr)
+# i am using this package in question 5 where i have to transform some of my variables before making the datapoints dynamic
+
+# i use the first code chunk to load all the necessary packages. i also set echo=FALSE, # so that my code doesn't show in the output
+```
+
+
+```{r download data , warning=FALSE}
+owensboro <- read_rds(url("https://stacks.stanford.edu/file/druid:tr137st9964/tr137st9964_ky_owensboro_2019_02_25.rds"))
+# i am donwnloading the rds file for gathering data and rows to portray on my map
+# i decided that i want to do owensboro because it is located in kentucky, and it was one of the first states i heard of because of KFC
+
+download.file("https://stacks.stanford.edu/file/druid:tr137st9964/tr137st9964_ky_owensboro_shapefiles_2019_02_25.tgz", destfile = "shapes.tgz")
+# now, i also need the shapefile
+untar("shapes.tgz")
+# i need to be able to extract separate files from the shapefile, which the untar() function does
+
+shapes <- read_sf("ky_owensboro_shapefiles/Police_Zones.shp")
+# i read in the data using the read_sf() function and assigning it to an appropriate name
+
+file_delete(c("shapes.tgz", "ky_owensboro_shapefiles/"))
+# now that i don't need these files, i can simply delete them
+```
+
+```{r question , warning=FALSE}
+race_stops <- owensboro %>%
+  # i want to observe the locations of stops based on race in owensboro, so i am assigning this data to an appropriate name
+  drop_na(lat, lng, subject_race) %>%
+  # i don't want any empty rows to be plotted on my map
+  select(lng, lat, subject_race, date) %>% 
+  # i pick the columns i want to study through the map, and since i will be using lng, lat, and date during plotting the map, i select them as well
+  mutate(subject_race = tools::toTitleCase(as.character(subject_race)))
+  # since the races are going to be listed in the legend, i want to make sure it looks professional by making the first lettes of the words uppercase, using the toTitleCase function in the tools package, enclosing it all in a mutate()
+
+  arrest_locations <- st_as_sf(race_stops,
+                             coords = c("lng", "lat"),
+                             crs = 4326)
+  # i create a new variable called arrest_locations that reads the data off race_stops and turns rows into an sf object by using st_as_sf. it has its coordinates specified to longitude and latitude the data provides and the crs is US-specific
+ggplot(data = shapes) +
+   # i use ggplot for plotting my map and list the shapefile as my data, since i am now transitioning into the actual map plotting from data gathering
+  geom_sf() +
+  # geom_sf will create a visual map for my shapefile
+  geom_sf(data = arrest_locations, aes(color = subject_race, alpha = 0.5, size = 10)) +
+  # i am listing the data i am using for mapping, which is arrest_locations and specify that i want the color of datapoints to represent race and the transparency of the datapoints to be 0.5 to ensure that the dots are still seen if they overlap, as well as that, i am setting the size of the dots to be 10 so that they are easily visible on the map of Owensboro.
+  # i want to show the difference in the number of traffic stops in the central part of owensboro and the rest, where there are just a few datapoints, which is why i decided not to zoom in so that i don't miss the rest of the datapoints and would be able to make the comparison
+  theme_map() +
+   # this theme from ggthemes will ensure that my map looks good
+  labs(title = "Location of Owensboro Traffic Stops Depending on Race",
+       subtitle = "Data from Aug 2015 - Aug 2017 shows that majority of stops where made in the central Owensboro",
+       caption = "Source: Stanford Open Policing Project") +
+  # i am giving my map appropriate title, subtitle, and caption for listing the source
+  # coord_sf(xlim = (FALSE), ylim = FALSE) +
+  theme(legend.position="bottom") +
+  # i want my legend to be placed below the map, so i list its position as below
+  guides(alpha = FALSE, size = FALSE) +
+# i only want my legend to inform on what the colors of the dots mean and don't want it to include the transparency of the dots as well as the size of the dots
+  scale_colour_discrete(name = "Race") +
+  # this will make sure that the column name on my legend looks professional instead of saying 'subject_sex
+  transition_states(date)
+  # this gganimate function will make datapoints pop up on the map depending on the data the stop has been made on. i use transition_states instead of transition_time because it makes the dots appear in a way i find more comprehensible
+
+```
+
